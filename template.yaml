@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+  # VPC, Network
+  VPCStyleGANTest:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.1.0.0/24
+  SubnetStyleGANTest:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPCStyleGANTest
+      CidrBlock: 10.1.0.0/28
+      AvailabilityZone: us-west-2a
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+  VPCGatewayAttachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPCStyleGANTest
+  PublicRouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPCStyleGANTest
+  PublicRoute:
+    Type: 'AWS::EC2::Route'
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref SubnetStyleGANTest
+      RouteTableId: !Ref PublicRouteTable
+
+  # SG
+  StyleGANTestSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPCStyleGANTest
+      GroupName: StyleGANTestSecurityGroup
+      GroupDescription: Security Group for StyleGAN test.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 10.1.0.0/24
+          Description: 'For SSH.'
+
+  # EC2
+  EC2StyleGANTest:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: 'ami-0b294f219d14e6a82'
+      InstanceType: 't2.micro'
+      #      InstanceType: 'g3s.xlarge'
+      SubnetId: !Ref SubnetStyleGANTest
+      KeyName: common-key-pare
+      SecurityGroupIds:
+        - !Ref StyleGANTestSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: "/dev/sda1"
+          Ebs:
+            VolumeType: "gp2"
+            DeleteOnTermination: 'true'
+            VolumeSize: '80'
+          NoDevice: {}
+  EIPStyleGANTest:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: !Ref VPCStyleGANTest
+      InstanceId: !Ref EC2StyleGANTest
+  EC2StyleGANTestEIPAssociation:
+    Type: 'AWS::EC2::EIPAssociation'
+    Properties:
+      AllocationId: !GetAtt EIPStyleGANTest.AllocationId
+      InstanceId: !Ref EC2StyleGANTest
+
+Outputs:
+  EIPStyleGANTestAllocationId:
+    Value: !Ref EIPStyleGANTest
